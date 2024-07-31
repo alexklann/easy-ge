@@ -21,6 +21,11 @@ And now you can run the script.
 ./easyge
 ```
 
+## API token
+To extend rate limits when using Easy-GE you can enter an optional API token when running the program.
+This token is saved when entering an API token.
+If you don't want to use an API token, then you can just press enter to skip it.
+
 > [!WARNING]  
 > This script will 100% delete a proton version if you use `3. Uninstall`.  
 > That's the job of this script (duh). There is no turning back afterwards.
