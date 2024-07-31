@@ -23,7 +23,7 @@ And now you can run the script.
 
 ## API token
 To extend rate limits when using Easy-GE you can enter an optional API token when running the program.
-This token is saved when entering an API token.
+This token is saved when entering an API token. Token can be generated on [this page](https://github.com/settings/tokens?type=beta).
 If you don't want to use an API token, then you can just press enter to skip it.
 
 > [!WARNING]  
