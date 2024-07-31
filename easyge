@@ -5,73 +5,64 @@ import pathlib
 
 PROTON_GE_REPO = "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases"
 
+def get_auth_headers(api_token=None):
+    if api_token:
+        return {"Authorization": f"token {api_token}"}
+    return {}
+
 def get_all_installed_versions():
     home_path = str(pathlib.Path.home())
     installed_versions = pathlib.Path(home_path + "/.steam/steam/compatibilitytools.d/").rglob("GE-Proton*")
     installed_versions = [str(version).split("/")[-1] for version in installed_versions]
     return installed_versions
 
-def install_version(version_name: str = None):
-    os.system("mkdir -p ~/.steam/steam/compatibilitytools.d")
-    if version_name:
-        print(f"Installing Proton-GE {version_name}...")
-        
-        version_name = f"GE-Proton{version_name.replace('.', '-').lower().strip()}"
-        print(version_name)
+def download_and_extract_asset(asset):
+    download_url = asset["browser_download_url"]
+    os.system(f"curl -L {download_url} -o ~/.steam/steam/compatibilitytools.d/proton.tar.gz")
+    print(f"Extracting {asset['name']}...")
+    os.system(f"tar -xf ~/.steam/steam/compatibilitytools.d/proton.tar.gz -C ~/.steam/steam/compatibilitytools.d")
+    os.system("rm -rf ~/.steam/steam/compatibilitytools.d/proton.tar.gz")
+    print(f"{asset['name']} installed successfully.")
 
-        response = requests.get(PROTON_GE_REPO)
+def install_version(api_token=None, version_name: str = None):
+    os.system("mkdir -p ~/.steam/steam/compatibilitytools.d")
+    version_name_formatted = f"GE-Proton{version_name.replace('.', '-').lower().strip()}" if version_name else None
+
+    page = 1
+    headers = get_auth_headers(api_token)
+    while True:
+        response = requests.get(f"{PROTON_GE_REPO}?per_page=100&page={page}", headers=headers)
         if response.status_code == 200:
             releases = response.json()
+            if not releases: break
+
             for release in releases:
-                if version_name in release["tag_name"]:
+                tag_name = release["tag_name"]
+                if (version_name and version_name_formatted in tag_name) or (not version_name and page == 1):
                     assets = release["assets"]
                     for asset in assets:
-                        if version_name in asset["name"]:
-                            print(f"Downloading Proton-GE {version_name}...")
-                            if "tar.gz" not in asset["name"]: continue
-                            download_url = asset["browser_download_url"]
-                            os.system(f"curl -L {download_url} -o ~/.steam/steam/compatibilitytools.d/proton.tar.gz")
-                            print(f"Extracting Proton-GE {version_name}...")
-                            os.system(f"tar -xf ~/.steam/steam/compatibilitytools.d/proton.tar.gz")
-                            os.system("rm -rf ~/.steam/steam/compatibilitytools.d/proton.tar.gz")
-                            print(f"Proton-GE {version_name} installed successfully.")
-                            break
-                    break
+                        if "tar.gz" in asset["name"]:
+                            print(f"Downloading Proton-GE {tag_name}...")
+                            download_and_extract_asset(asset)
+                            return
+
+            if not version_name: break
+
+            page += 1
         else:
             print("Failed to fetch releases from the Proton-GE repository.")
             exit(1)
+
+    if version_name:
+        print(f"Proton-GE {version_name} not found.")
     else:
-        print("Installing the latest version of Proton-GE...")
-        response = requests.get(PROTON_GE_REPO)
-        if response.status_code == 200:
-            releases = response.json()
-            latest_release = releases[0]
-            version_name = latest_release["tag_name"]
-            if version_name in get_all_installed_versions():
-                print(f"{version_name} is already installed.")
-                exit(1)
-            assets = latest_release["assets"]
-            for asset in assets:
-                if version_name in asset["name"]:
-                    print(f"Downloading Proton-GE {version_name}...")
-                    if "tar.gz" not in asset["name"]: continue
-                    download_url = asset["browser_download_url"]
-                    os.system(f"curl -L {download_url} -o ~/.steam/steam/compatibilitytools.d/proton.tar.gz")
-                    print(f"Extracting Proton-GE {version_name}...")
-                    os.system(f"tar -xf ~/.steam/steam/compatibilitytools.d/proton.tar.gz")
-                    os.system("rm -rf ~/.steam/steam/compatibilitytools.d/proton.tar.gz")
-                    print(f"Proton-GE {version_name} installed successfully.")
-                    break
-        else:
-            print("Failed to fetch releases from the Proton-GE repository.")
-            exit(1)
-    pass
+        print("Failed to install the latest Proton-GE version.")
 
 def uninstall_version(version_name: str):
-    version_name = f"GE-Proton{version_name.replace('.', '-').lower().strip()}"
-    if version_name in get_all_installed_versions():
-        os.system(f"rm -rf ~/.steam/steam/compatibilitytools.d/{version_name}")
-        print(f"{version_name} uninstalled successfully.")
+    version_name_formatted = f"GE-Proton{version_name.replace('.', '-').lower().strip()}"
+    if version_name_formatted in get_all_installed_versions():
+        os.system(f"rm -rf ~/.steam/steam/compatibilitytools.d/{version_name_formatted}")
+        print(f"{version_name_formatted} uninstalled successfully.")
     else:
         print("Invalid version.")
         exit(1)
@@ -84,15 +75,23 @@ def main():
     print("3. Uninstall Proton-GE")
 
     user_input = input("Enter your choice: ").lower().strip()
+
+    with open("token.txt", "r") as f:
+        file_contents = f.read()
+        if file_contents != "":
+            api_token = file_contents
+        else:
+            api_token = input("Enter your GitHub API token (or press Enter to skip): ").strip() or None
+            if api_token:
+                f.write(api_token)
+
     if user_input == "1":
         user_input = input("Enter the version of Proton-GE to install [e.g.: 9.10 or leave blank for latest]: ").lower().strip()
-        install_version(user_input)
-
+        install_version(api_token, user_input)
     elif user_input == "2":
         print("The following Proton-GE versions are installed:")
         for version in get_all_installed_versions():
             print(version)
-
     elif user_input == "3":
         print("The following Proton-GE versions are installed:")
         for version in get_all_installed_versions():
@@ -104,11 +103,9 @@ def main():
         else:
             print("No input given.")
             exit(1)
-
     else:
         print("Invalid choice. Exiting...")
         exit(1)
-    
 
 if __name__ == "__main__":
     main()
